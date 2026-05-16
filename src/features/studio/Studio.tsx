@@ -103,15 +103,17 @@ export const Studio: React.FC<StudioProps> = ({
     }));
   }, [fills, pageId]);
 
-  const handleClearBrush = () => {
-    if (window.confirm('Clear all brush strokes?')) {
+  const handleClearCanvas = () => {
+    if (window.confirm('Clear all progress (fills and brush strokes)? This cannot be undone.')) {
+      resetFills({});
       setBrushData(undefined);
       localStorage.setItem(`prismaflow-project-${pageId}`, JSON.stringify({
         pageId,
-        fills,
+        fills: {},
         brushData: undefined,
         lastModified: Date.now()
       }));
+      toast.success('Canvas cleared');
     }
   };
 
@@ -356,12 +358,20 @@ export const Studio: React.FC<StudioProps> = ({
                     className="w-full"
                   />
                 </div>
-                <Button variant="outline" size="sm" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50" onClick={handleClearBrush}>
-                  Clear Brush Layer
-                </Button>
               </div>
             </section>
           )}
+
+          <section className="pt-4 border-t border-border/40">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100" 
+              onClick={handleClearCanvas}
+            >
+              Clear Canvas
+            </Button>
+          </section>
         </div>
 
         <div className="p-4 border-t border-border/40 grid grid-cols-2 gap-4">
