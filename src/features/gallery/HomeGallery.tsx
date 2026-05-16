@@ -31,6 +31,15 @@ export const HomeGallery: React.FC<HomeGalleryProps> = ({ onSelectPage, onOpenAc
                 <div 
                   className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden"
                   onClick={() => onSelectPage(page.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${page.title}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectPage(page.id);
+                    }
+                  }}
                 >
                   {page.image ? (
                     <img src={page.image} alt={page.title} className="w-full h-full object-cover transition-transform group-hover:scale-110" />

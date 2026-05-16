@@ -35,6 +35,13 @@ export const Studio: React.FC<StudioProps> = ({
   onOpenAccess,
   activeProfile
 }) => {
+  const [selectedColor, setSelectedColor] = useState('#8E94F2');
+  const [mode, setMode] = useState<'fill' | 'brush'>('fill');
+  const [brushSize, setBrushSize] = useState(5);
+  const [brushOpacity, setBrushOpacity] = useState(1);
+  const [brushData, setBrushData] = useState<string | undefined>(undefined);
+  const [selectedRegionIndex, setSelectedRegionIndex] = useState<number>(-1);
+
   const page = STARTER_PAGES.find(p => p.id === pageId);
 
   if (!page) {
@@ -47,13 +54,6 @@ export const Studio: React.FC<StudioProps> = ({
       </div>
     );
   }
-
-  const [selectedColor, setSelectedColor] = useState('#8E94F2');
-  const [mode, setMode] = useState<'fill' | 'brush'>('fill');
-  const [brushSize, setBrushSize] = useState(5);
-  const [brushOpacity, setBrushOpacity] = useState(1);
-  const [brushData, setBrushData] = useState<string | undefined>(undefined);
-  const [selectedRegionIndex, setSelectedRegionIndex] = useState<number>(-1);
 
   const { 
     currentState: fills, 
@@ -293,11 +293,17 @@ export const Studio: React.FC<StudioProps> = ({
         "w-full md:w-80 border-t md:border-t-0 md:border-l border-border/40 bg-background/60 backdrop-blur-md flex flex-col shrink-0 z-20",
         isADHD && "md:w-64"
       )}>
-        <div className="p-4 border-b border-border/40 flex items-center justify-between">
-          <h3 className="font-bold">{page.title}</h3>
-          <Button variant="ghost" size="sm" onClick={() => toast.success('Artwork saved!')}>
-            Saved
-          </Button>
+        <div className="p-4 border-b border-border/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold">{page.title}</h3>
+            <Button variant="ghost" size="sm" onClick={() => toast.success('Artwork saved!')}>
+              Saved
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground text-pretty">{page.description}</p>
+          <span className="inline-block text-xs font-medium uppercase tracking-wider px-2 py-1 rounded bg-secondary text-secondary-foreground">
+            {page.difficulty}
+          </span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-8">
