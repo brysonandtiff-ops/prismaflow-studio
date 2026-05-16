@@ -153,6 +153,17 @@ export const Studio: React.FC<StudioProps> = ({
     window.speechSynthesis.speak(utterance);
   }, [page, fills]);
 
+  // Programmatically focus the selected region for keyboard navigation
+  useEffect(() => {
+    if (selectedRegionIndex >= 0 && svgRef.current) {
+      const regionId = page.regions[selectedRegionIndex].id;
+      const path = svgRef.current.querySelector(`[id="${regionId}"]`);
+      if (path && path instanceof SVGElement) {
+        (path as HTMLElement).focus();
+      }
+    }
+  }, [selectedRegionIndex, page]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!page) return;
@@ -170,20 +181,33 @@ export const Studio: React.FC<StudioProps> = ({
         }
       }
 
-      // Region Navigation
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        setSelectedRegionIndex(prev => {
-          const next = (prev + 1) % page.regions.length;
-          speakRegion(page.regions[next].id);
-          return next;
-        });
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        setSelectedRegionIndex(prev => {
-          const next = prev <= 0 ? page.regions.length - 1 : prev - 1;
-          speakRegion(page.regions[next].id);
-          return next;
-        });
-      } else if (e.key === 'Enter') {
+      // Region Navigation — Arrow keys + Tab/Shift+Tab
+      const isNext = e.key === 'ArrowRight' || e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey);
+      const isPrev = e.key === 'ArrowLeft' || e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey);
+
+      if (isNext || isPrev) {
+        // Only intercept Tab/Shift+Tab when focus is inside the SVG canvas
+        if (e.key === 'Tab') {
+          const active = document.activeElement;
+          const inCanvas = svgRef.current && active && svgRef.current.contains(active as Node);
+          if (!inCanvas) return;
+          e.preventDefault();
+        }
+
+        if (isNext) {
+          setSelectedRegionIndex(prev => {
+            const next = (prev + 1) % page.regions.length;
+            speakRegion(page.regions[next].id);
+            return next;
+          });
+        } else {
+          setSelectedRegionIndex(prev => {
+            const next = prev <= 0 ? page.regions.length - 1 : prev - 1;
+            speakRegion(page.regions[next].id);
+            return next;
+          });
+        }
+      } else if (e.key === 'Enter' || e.key === ' ') {
         if (selectedRegionIndex >= 0) {
           handleFill(page.regions[selectedRegionIndex].id);
           toast.success(`Filled ${page.regions[selectedRegionIndex].name}`);
