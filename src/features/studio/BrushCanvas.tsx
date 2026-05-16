@@ -5,6 +5,8 @@ interface BrushCanvasProps {
   color: string;
   size: number;
   opacity: number;
+  isEraser: boolean;
+  softBrush: boolean;
   onUpdate: (dataUrl: string) => void;
   initialData?: string;
 }
@@ -14,6 +16,8 @@ export const BrushCanvas = React.forwardRef<HTMLCanvasElement, BrushCanvasProps>
   color,
   size,
   opacity,
+  isEraser,
+  softBrush,
   onUpdate,
   initialData
 }, ref) => {
@@ -39,8 +43,8 @@ export const BrushCanvas = React.forwardRef<HTMLCanvasElement, BrushCanvasProps>
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    ctx.lineCap = softBrush ? 'round' : 'square';
+    ctx.lineJoin = softBrush ? 'round' : 'miter';
     ctxRef.current = ctx;
 
     if (initialData) {
@@ -53,32 +57,46 @@ export const BrushCanvas = React.forwardRef<HTMLCanvasElement, BrushCanvasProps>
     } else {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [initialData]);
+  }, [initialData, softBrush]);
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (!active) return;
     setIsDrawing(true);
     const pos = getPos(e);
-    ctxRef.current?.beginPath();
-    ctxRef.current?.moveTo(pos.x, pos.y);
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+
+    if (isEraser) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing || !active) return;
     const pos = getPos(e);
     const ctx = ctxRef.current;
-    if (ctx) {
+    if (!ctx) return;
+
+    ctx.lineWidth = size;
+    if (!isEraser) {
       ctx.strokeStyle = color;
-      ctx.lineWidth = size;
       ctx.globalAlpha = opacity;
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
     }
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
   };
 
   const stopDrawing = () => {
     if (!isDrawing) return;
     setIsDrawing(false);
+    const ctx = ctxRef.current;
+    if (ctx) ctx.globalCompositeOperation = 'source-over';
     onUpdate(canvasRef.current?.toDataURL() || '');
   };
 

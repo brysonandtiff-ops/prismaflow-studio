@@ -7,6 +7,7 @@ import { PalettePicker } from '@/features/palette/PalettePicker';
 import { STARTER_PAGES } from '@/data/starterPages';
 import { useUndoStack } from './useUndoStack';
 import { AccessProfileType } from '@/features/access/accessProfiles';
+import { ImportedPage } from '@/features/import/ImportHub';
 import {
   ChevronLeft,
   Undo,
@@ -18,9 +19,12 @@ import {
   Volume2,
   Maximize2,
   Eraser,
-  Save
+  Save,
+  Pipette,
+  MousePointerClick,
+  X,
 } from 'lucide-react';
-import { exportArtwork } from '@/features/export/exportArtwork';
+import { exportArtwork, ExportOptions } from '@/features/export/exportArtwork';
 import { toast } from 'sonner';
 
 interface StudioProps {
@@ -30,6 +34,36 @@ interface StudioProps {
   activeProfile: AccessProfileType;
 }
 
+function loadImportedPages(): ImportedPage[] {
+  try {
+    const saved = localStorage.getItem('prismaflow-imported-pages');
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
+}
+
+function getPage(pageId: string) {
+  const starter = STARTER_PAGES.find(p => p.id === pageId);
+  if (starter) return starter;
+  const imported = loadImportedPages().find(p => p.id === pageId);
+  if (!imported) return null;
+  // Convert imported page to ColoringPage shape
+  return {
+    id: imported.id,
+    title: imported.title,
+    description: imported.type === 'svg'
+      ? 'Your imported SVG colouring page.'
+      : 'Your imported image. Use brush colouring.',
+    difficulty: 'detailed' as const,
+    svgViewBox: '0 0 200 200',
+    regions: imported.regions.map(r => ({
+      id: r.id,
+      name: r.name,
+      description: `Region ${r.name}`,
+      fill: '#ffffff',
+    })),
+  };
+}
+
 export const Studio: React.FC<StudioProps> = ({
   pageId,
   onBack,
@@ -37,13 +71,17 @@ export const Studio: React.FC<StudioProps> = ({
   activeProfile
 }) => {
   const [selectedColor, setSelectedColor] = useState('#45E7FF');
-  const [mode, setMode] = useState<'fill' | 'brush'>('fill');
+  const [mode, setMode] = useState<'fill' | 'brush' | 'eraser' | 'picker'>('fill');
   const [brushSize, setBrushSize] = useState(5);
   const [brushOpacity, setBrushOpacity] = useState(1);
+  const [softBrush, setSoftBrush] = useState(true);
   const [brushData, setBrushData] = useState<string | undefined>(undefined);
   const [selectedRegionIndex, setSelectedRegionIndex] = useState<number>(-1);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
-  const page = STARTER_PAGES.find(p => p.id === pageId);
+  const page = getPage(pageId);
+  const isRaster = loadImportedPages().find(p => p.id === pageId)?.type === 'raster';
+  const hasRegions = (page?.regions.length || 0) > 0;
 
   if (!page) {
     return (
@@ -82,7 +120,15 @@ export const Studio: React.FC<StudioProps> = ({
   }, [pageId, resetFills]);
 
   const handleFill = useCallback((regionId: string) => {
-    if (mode !== 'fill') return;
+    if (mode === 'picker') {
+      const picked = fills[regionId];
+      if (picked) {
+        setSelectedColor(picked);
+        toast.success(`Picked colour from region`);
+      }
+      return;
+    }
+    if (mode !== 'fill' || isRaster || !hasRegions) return;
     const newFills = { ...fills, [regionId]: selectedColor };
     pushFill(newFills);
 
@@ -92,7 +138,7 @@ export const Studio: React.FC<StudioProps> = ({
       brushData,
       lastModified: Date.now()
     }));
-  }, [fills, mode, pageId, pushFill, selectedColor, brushData]);
+  }, [fills, mode, pageId, pushFill, selectedColor, brushData, isRaster, hasRegions]);
 
   const handleBrushUpdate = useCallback((dataUrl: string) => {
     setBrushData(dataUrl);
@@ -149,14 +195,15 @@ export const Studio: React.FC<StudioProps> = ({
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(
-      `${region.name}. ${region.description}. Current color: ${fills[regionId] || 'white'}.`
+      `${region.name}. ${region.description}. Current colour: ${fills[regionId] || 'white'}.`
     );
     window.speechSynthesis.speak(utterance);
   }, [page, fills]);
 
   useEffect(() => {
-    if (selectedRegionIndex >= 0 && svgRef.current) {
-      const regionId = page.regions[selectedRegionIndex].id;
+    if (selectedRegionIndex >= 0 && svgRef.current && page) {
+      const regionId = page.regions[selectedRegionIndex]?.id;
+      if (!regionId) return;
       const path = svgRef.current.querySelector(`[id="${regionId}"]`);
       if (path && path instanceof SVGElement) {
         (path as HTMLElement).focus();
@@ -205,24 +252,24 @@ export const Studio: React.FC<StudioProps> = ({
           });
         }
       } else if (e.key === 'Enter' || e.key === ' ') {
-        if (selectedRegionIndex >= 0) {
+        if (selectedRegionIndex >= 0 && page.regions[selectedRegionIndex]) {
           handleFill(page.regions[selectedRegionIndex].id);
-          toast.success(`Filled ${page.regions[selectedRegionIndex].name}`);
+          if (mode === 'fill') toast.success(`Filled ${page.regions[selectedRegionIndex].name}`);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [page, selectedRegionIndex, handleFill, handleUndo, handleRedo]);
+  }, [page, selectedRegionIndex, handleFill, handleUndo, handleRedo, mode]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const brushCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const handleExport = async () => {
+  const handleExport = async (opts?: ExportOptions) => {
     if (!svgRef.current) return;
     toast.promise(
-      exportArtwork(pageId, svgRef.current, brushCanvasRef.current),
+      exportArtwork(pageId, svgRef.current, brushCanvasRef.current, opts),
       {
         loading: 'Preparing your masterpiece...',
         success: 'Artwork exported successfully!',
@@ -233,6 +280,7 @@ export const Studio: React.FC<StudioProps> = ({
 
   const isADHD = activeProfile === 'adhd';
   const isBlind = activeProfile === 'blind';
+  const brushActive = mode === 'brush' || mode === 'eraser';
 
   return (
     <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative bg-[#07080D]">
@@ -257,6 +305,7 @@ export const Studio: React.FC<StudioProps> = ({
             onClick={() => setMode('fill')}
             aria-label="Fill Mode"
             title="Fill Mode"
+            disabled={isRaster || !hasRegions}
             className={cn(
               "rounded-xl transition-all",
               mode === 'fill' && "bg-gradient-to-br from-[#45E7FF] to-[#00BBF9] text-[#07080D] shadow-lg shadow-[#45E7FF]/20 hover:opacity-90"
@@ -279,6 +328,35 @@ export const Studio: React.FC<StudioProps> = ({
               <Brush className="w-5 h-5" />
             </Button>
           )}
+          {!isADHD && (
+            <Button
+              variant={mode === 'eraser' ? 'default' : 'ghost'}
+              size="icon"
+              onClick={() => setMode('eraser')}
+              aria-label="Eraser Mode"
+              title="Eraser Mode"
+              className={cn(
+                "rounded-xl transition-all",
+                mode === 'eraser' && "bg-gradient-to-br from-[#FF6EC7] to-[#D946EF] text-white shadow-lg shadow-[#FF6EC7]/20 hover:opacity-90"
+              )}
+            >
+              <Eraser className="w-5 h-5" />
+            </Button>
+          )}
+          <Button
+            variant={mode === 'picker' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => setMode('picker')}
+            aria-label="Picker Mode"
+            title="Picker Mode"
+            disabled={isRaster || !hasRegions}
+            className={cn(
+              "rounded-xl transition-all",
+              mode === 'picker' && "bg-gradient-to-br from-[#FFD166] to-[#FFB700] text-[#07080D] shadow-lg shadow-[#FFD166]/20 hover:opacity-90"
+            )}
+          >
+            <Pipette className="w-5 h-5" />
+          </Button>
         </div>
 
         <div className="hidden md:block w-8 h-px bg-border/40" />
@@ -316,7 +394,6 @@ export const Studio: React.FC<StudioProps> = ({
       {/* Main Studio Area */}
       <div className="flex-1 relative flex flex-col min-w-0">
         <div className="absolute inset-0 overflow-hidden bg-gradient-to-br from-[#0A0C14] via-[#07080D] to-[#0D0F1A]">
-          {/* Subtle grid pattern */}
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
@@ -324,25 +401,57 @@ export const Studio: React.FC<StudioProps> = ({
               backgroundSize: '40px 40px'
             }}
           />
-          <SvgColoringCanvas
-            ref={svgRef}
-            pageId={pageId}
-            fills={fills}
-            onFill={handleFill}
-            viewBox={page.svgViewBox}
-            selectedRegionId={selectedRegionIndex >= 0 ? page.regions[selectedRegionIndex].id : undefined}
-            regions={page.regions}
-          />
-          {mode === 'brush' && (
-            <BrushCanvas
-              ref={brushCanvasRef}
-              active={true}
-              color={selectedColor}
-              size={brushSize}
-              opacity={brushOpacity}
-              onUpdate={handleBrushUpdate}
-              initialData={brushData}
-            />
+          {isRaster ? (
+            <div className="w-full h-full flex items-center justify-center">
+              {(() => {
+                const imported = loadImportedPages().find(p => p.id === pageId);
+                return imported ? (
+                  <div className="relative w-full h-full">
+                    <img
+                      src={imported.data}
+                      alt={imported.title}
+                      className="w-full h-full object-contain"
+                    />
+                    <BrushCanvas
+                      ref={brushCanvasRef}
+                      active={brushActive}
+                      color={selectedColor}
+                      size={brushSize}
+                      opacity={brushOpacity}
+                      isEraser={mode === 'eraser'}
+                      softBrush={softBrush}
+                      onUpdate={handleBrushUpdate}
+                      initialData={brushData}
+                    />
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          ) : (
+            <>
+              <SvgColoringCanvas
+                ref={svgRef}
+                pageId={pageId}
+                fills={fills}
+                onFill={handleFill}
+                viewBox={page.svgViewBox}
+                selectedRegionId={selectedRegionIndex >= 0 ? page.regions[selectedRegionIndex]?.id : undefined}
+                regions={page.regions}
+              />
+              {brushActive && (
+                <BrushCanvas
+                  ref={brushCanvasRef}
+                  active={true}
+                  color={selectedColor}
+                  size={brushSize}
+                  opacity={brushOpacity}
+                  isEraser={mode === 'eraser'}
+                  softBrush={softBrush}
+                  onUpdate={handleBrushUpdate}
+                  initialData={brushData}
+                />
+              )}
+            </>
           )}
         </div>
 
@@ -386,8 +495,23 @@ export const Studio: React.FC<StudioProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-8">
+          {/* Raster-only notice */}
+          {isRaster && (
+            <div className="p-4 rounded-xl bg-[#FFD166]/10 border border-[#FFD166]/20">
+              <div className="flex items-start gap-2">
+                <MousePointerClick className="w-4 h-4 text-[#FFD166] shrink-0 mt-0.5" />
+                <div className="text-sm text-[#FFD166]">
+                  <p className="font-medium">Brush colouring only</p>
+                  <p className="text-xs opacity-80 mt-1">
+                    This imported image supports freehand brush colouring. Region fill and navigation are available only for SVG region pages.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Blind Guide Region List */}
-          {isBlind && (
+          {isBlind && hasRegions && (
             <section className="space-y-3">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Volume2 className="w-3.5 h-3.5" />
@@ -421,9 +545,11 @@ export const Studio: React.FC<StudioProps> = ({
           </section>
 
           {/* Brush Settings */}
-          {mode === 'brush' && (
+          {brushActive && (
             <section className="space-y-4 pt-4 border-t border-border/30">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Brush Settings</h4>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {mode === 'eraser' ? 'Eraser Settings' : 'Brush Settings'}
+              </h4>
               <div className="space-y-5">
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs text-muted-foreground">
@@ -437,18 +563,46 @@ export const Studio: React.FC<StudioProps> = ({
                     className="w-full accent-[#45E7FF]"
                   />
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Opacity</span>
-                    <span className="font-mono">{Math.round(brushOpacity * 100)}%</span>
+                {mode !== 'eraser' && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Opacity</span>
+                      <span className="font-mono">{Math.round(brushOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range" min="0.1" max="1" step="0.1"
+                      value={brushOpacity}
+                      onChange={(e) => setBrushOpacity(parseFloat(e.target.value))}
+                      className="w-full accent-[#45E7FF]"
+                    />
                   </div>
-                  <input
-                    type="range" min="0.1" max="1" step="0.1"
-                    value={brushOpacity}
-                    onChange={(e) => setBrushOpacity(parseFloat(e.target.value))}
-                    className="w-full accent-[#45E7FF]"
-                  />
-                </div>
+                )}
+                {mode !== 'eraser' && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSoftBrush(true)}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg text-xs font-medium border transition-all",
+                        softBrush
+                          ? "border-[#45E7FF]/40 bg-[#45E7FF]/10 text-[#45E7FF]"
+                          : "border-border/30 text-muted-foreground hover:border-border/50"
+                      )}
+                    >
+                      Soft
+                    </button>
+                    <button
+                      onClick={() => setSoftBrush(false)}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg text-xs font-medium border transition-all",
+                        !softBrush
+                          ? "border-[#45E7FF]/40 bg-[#45E7FF]/10 text-[#45E7FF]"
+                          : "border-border/30 text-muted-foreground hover:border-border/50"
+                      )}
+                    >
+                      Hard
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -471,7 +625,7 @@ export const Studio: React.FC<StudioProps> = ({
         <div className="p-5 border-t border-border/30 grid grid-cols-2 gap-3">
           <Button
             className="w-full rounded-xl bg-gradient-to-r from-[#45E7FF] to-[#8B5CF6] text-[#07080D] font-semibold hover:opacity-90 transition-opacity"
-            onClick={handleExport}
+            onClick={() => setShowExportDialog(true)}
           >
             <Download className="w-4 h-4 mr-2" /> Export
           </Button>
@@ -483,6 +637,49 @@ export const Studio: React.FC<StudioProps> = ({
           </Button>
         </div>
       </aside>
+
+      {/* Export Dialog */}
+      {showExportDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
+          <GlassPanel strong className="w-full max-w-sm shadow-2xl border border-border/40">
+            <div className="p-5 border-b border-border/30 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Export Options</h3>
+              <Button variant="ghost" size="icon" onClick={() => setShowExportDialog(false)} className="rounded-xl">
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="p-5 space-y-3">
+              <Button
+                onClick={() => { handleExport({ quality: 'standard', includeTitle: true }); setShowExportDialog(false); }}
+                className="w-full rounded-xl bg-gradient-to-r from-[#45E7FF] to-[#8B5CF6] text-[#07080D] font-semibold"
+              >
+                PNG Standard
+              </Button>
+              <Button
+                onClick={() => { handleExport({ quality: 'high', includeTitle: true }); setShowExportDialog(false); }}
+                variant="outline"
+                className="w-full rounded-xl border-border/40"
+              >
+                PNG High Resolution
+              </Button>
+              <Button
+                onClick={() => { handleExport({ quality: 'standard', transparent: true, includeTitle: false }); setShowExportDialog(false); }}
+                variant="outline"
+                className="w-full rounded-xl border-border/40"
+              >
+                Transparent Background
+              </Button>
+              <Button
+                onClick={() => { handleExport({ quality: 'standard', includePalette: true }); setShowExportDialog(false); }}
+                variant="outline"
+                className="w-full rounded-xl border-border/40"
+              >
+                Include Palette Card
+              </Button>
+            </div>
+          </GlassPanel>
+        </div>
+      )}
     </div>
   );
 };

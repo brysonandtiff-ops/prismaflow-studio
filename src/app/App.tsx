@@ -38,18 +38,18 @@ const App: React.FC = () => {
     <AppShell>
       {showOnboarding && <OnboardingCard onStart={handleStart} />}
       {showAbout && <AboutPrivacy onClose={() => setShowAbout(false)} />}
-      
+
       {currentScreen === 'home' && (
-        <HomeGallery 
-          onSelectPage={navigateToStudio} 
-          onOpenAccess={() => setCurrentScreen('access')} 
+        <HomeGallery
+          onSelectPage={navigateToStudio}
+          onOpenAccess={() => setCurrentScreen('access')}
           onOpenAbout={() => setShowAbout(true)}
         />
       )}
       {currentScreen === 'studio' && selectedPageId && (
-        <Studio 
-          pageId={selectedPageId} 
-          onBack={navigateHome} 
+        <Studio
+          pageId={selectedPageId}
+          onBack={navigateHome}
           onOpenAccess={() => setCurrentScreen('access')}
           activeProfile={activeProfile}
         />
@@ -64,10 +64,10 @@ const App: React.FC = () => {
         </div>
       )}
       {currentScreen === 'access' && (
-        <AccessCentre 
+        <AccessCentre
           activeProfile={activeProfile}
           onSelectProfile={setActiveProfile}
-          onClose={() => setCurrentScreen(selectedPageId ? 'studio' : 'home')} 
+          onClose={() => setCurrentScreen(selectedPageId ? 'studio' : 'home')}
         />
       )}
     </AppShell>
