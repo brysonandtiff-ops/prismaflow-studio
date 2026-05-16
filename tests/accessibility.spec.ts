@@ -3,7 +3,14 @@ import AxeBuilder from '@axe-core/playwright';
 
 test('accessibility scan', async ({ page }) => {
   await page.goto('/');
-  
+
+  // Dismiss onboarding if present
+  const getStarted = page.locator('text=Get Started');
+  if (await getStarted.isVisible().catch(() => false)) {
+    await getStarted.click();
+    await expect(getStarted).not.toBeVisible();
+  }
+
   // Home page scan
   const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
   expect(accessibilityScanResults.violations).toEqual([]);

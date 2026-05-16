@@ -27,3 +27,9 @@ package-lock.json
 .sync
 history/*.json
 .vite_cache
+
+# Test artifacts
+test-results/
+
+# Workspace state
+historical_context.txt

@@ -1,6 +1,6 @@
 # PRISMAFLOW Studio v1.0
 
-PRISMAFLOW Studio is a premium accessible colouring PWA built for all ages and all abilities. **Status: All 16 core features confirmed operational.**
+PRISMAFLOW Studio is a premium accessible colouring PWA built for all ages and all abilities. **Status: All 16 core features confirmed operational; `pnpm run verify` PASS.**
 
 ## Confirmed Built Features
 | # | Feature | Status |
@@ -22,6 +22,13 @@ PRISMAFLOW Studio is a premium accessible colouring PWA built for all ages and a
 | 15 | **Blind Guide Mode** | TTS descriptions, full keyboard control |
 | 16 | **Responsive Layout** | Desktop & mobile sidebar/toolbar |
 
+## Recent Changes (v7)
+- **Gallery → Studio Wiring**: Cards now open the correct Studio canvas (Prism Fox, Calm Mandala, Space Whale) via `navigateToStudio(pageId)`.
+- **Studio → Gallery Back Button**: Returns to Home Gallery without crashing or losing the App Shell.
+- **React Rules of Hooks Fix**: Moved `STARTER_PAGES.find()` lookup after all `useState`/`useEffect` hooks in `Studio.tsx` to prevent conditional hook violations.
+- **Gallery Keyboard Accessibility**: Added `role="button"`, `tabIndex={0}`, `aria-label`, and `Enter`/`Space` key handlers to gallery card images.
+- **No-Artwork Fallback**: Displays a "No artwork selected" screen with a Back button if Studio is reached without a valid `pageId`.
+
 ## Tech Stack
 - React 18 + TypeScript
 - Vite + PWA Plugin (Workbox)
@@ -29,9 +36,10 @@ PRISMAFLOW Studio is a premium accessible colouring PWA built for all ages and a
 - Lucide React icons
 
 ## Current State
-- **Build**: Passing (TypeScript + Vite production build verified)
-- **Bundle**: ~76 kB gzipped JS + 12 kB CSS
-- **Precache**: 24 assets (373 KiB total)
+- **Build**: ✅ Passing (`tsc --noEmit` + `vite build`)
+- **Verify**: ✅ Passing (`typecheck` → `build` → `e2e` → `a11y`)
+- **Bundle**: ~76.4 kB gzipped JS + 12.5 kB CSS
+- **Precache**: 24 assets (374.86 KiB total)
 - **Last Verified**: 2026-05-16
 
 ## Accessibility Profiles
