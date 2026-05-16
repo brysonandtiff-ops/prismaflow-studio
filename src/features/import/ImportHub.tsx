@@ -125,6 +125,28 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
     toast.success('Page deleted');
   }, [importedPages]);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+
+  const startRename = useCallback((id: string) => {
+    const page = importedPages.find(p => p.id === id);
+    if (!page) return;
+    setEditingId(id);
+    setEditName(page.title);
+  }, [importedPages]);
+
+  const saveRename = useCallback(() => {
+    if (!editingId || !editName.trim()) { setEditingId(null); return; }
+    const updated = importedPages.map(p =>
+      p.id === editingId ? { ...p, title: editName.trim() } : p
+    );
+    setImportedPages(updated);
+    saveImportedPages(updated);
+    setEditingId(null);
+    setEditName('');
+    toast.success('Page renamed');
+  }, [editingId, editName, importedPages]);
+
   const handleOpenFile = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -269,10 +291,39 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{page.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {page.type === 'svg' ? `${page.regions.length} regions` : 'Brush only'}
-                      </p>
+                      {editingId === page.id ? (
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onBlur={saveRename}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setEditingId(null); }}
+                          className="w-full px-2 py-1 rounded bg-background/50 border border-border/40 text-sm"
+                          autoFocus
+                          aria-label="Rename imported page"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => startRename(page.id)}
+                          className="text-sm font-medium truncate hover:text-primary transition-colors text-left w-full"
+                          aria-label={`Rename ${page.title}`}
+                        >
+                          {page.title}
+                        </button>
+                      )}
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                          page.type === 'svg'
+                            ? "bg-[#6EF3B5]/10 text-[#6EF3B5]"
+                            : "bg-[#FF6EC7]/10 text-[#FF6EC7]"
+                        )}>
+                          {page.type === 'svg' ? 'SVG Region' : 'Raster'}
+                        </span>
+                        <span>{page.type === 'svg' ? `${page.regions.length} regions` : 'Brush only'}</span>
+                        <span>·</span>
+                        <span>{new Date(page.createdAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <Button

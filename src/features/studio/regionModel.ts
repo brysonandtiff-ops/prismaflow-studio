@@ -13,6 +13,11 @@ export interface ColoringPage {
   difficulty: 'calm' | 'medium' | 'detailed';
   svgViewBox: string;
   regions: Region[];
+  /** Gallery metadata */
+  recommendedPalette?: string;
+  estimatedMinutes?: number;
+  accessBadges?: string[];
+  altText?: string;
 }
 
 export interface ProjectState {
