@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { GlassPanel } from '@/components/GlassPanel';
 import { Button } from '@/components/ui/button';
 import { SvgColoringCanvas } from './SvgColoringCanvas';
 import { BrushCanvas } from './BrushCanvas';
@@ -8,16 +7,18 @@ import { PalettePicker } from '@/features/palette/PalettePicker';
 import { STARTER_PAGES } from '@/data/starterPages';
 import { useUndoStack } from './useUndoStack';
 import { AccessProfileType } from '@/features/access/accessProfiles';
-import { 
-  ChevronLeft, 
-  Undo, 
-  Redo, 
-  Download, 
-  Settings, 
-  Brush, 
+import {
+  ChevronLeft,
+  Undo,
+  Redo,
+  Download,
+  Settings,
+  Brush,
   PaintBucket,
   Volume2,
-  Maximize2
+  Maximize2,
+  Eraser,
+  Save
 } from 'lucide-react';
 import { exportArtwork } from '@/features/export/exportArtwork';
 import { toast } from 'sonner';
@@ -35,7 +36,7 @@ export const Studio: React.FC<StudioProps> = ({
   onOpenAccess,
   activeProfile
 }) => {
-  const [selectedColor, setSelectedColor] = useState('#8E94F2');
+  const [selectedColor, setSelectedColor] = useState('#45E7FF');
   const [mode, setMode] = useState<'fill' | 'brush'>('fill');
   const [brushSize, setBrushSize] = useState(5);
   const [brushOpacity, setBrushOpacity] = useState(1);
@@ -49,24 +50,25 @@ export const Studio: React.FC<StudioProps> = ({
       <div className="flex-1 flex items-center justify-center p-8 text-center">
         <div className="space-y-4">
           <h2 className="text-2xl font-bold">Page not found</h2>
-          <Button onClick={onBack}>Back to Gallery</Button>
+          <Button onClick={onBack} className="bg-gradient-to-r from-[#45E7FF] to-[#8B5CF6] text-[#07080D] font-semibold">
+            Back to Gallery
+          </Button>
         </div>
       </div>
     );
   }
 
-  const { 
-    currentState: fills, 
-    pushState: pushFill, 
-    undo, 
-    redo, 
-    canUndo, 
+  const {
+    currentState: fills,
+    pushState: pushFill,
+    undo,
+    redo,
+    canUndo,
     canRedo,
     reset: resetFills
   } = useUndoStack<Record<string, string>>({});
 
   useEffect(() => {
-    // Load initial fills if any
     const saved = localStorage.getItem(`prismaflow-project-${pageId}`);
     if (saved) {
       try {
@@ -83,8 +85,7 @@ export const Studio: React.FC<StudioProps> = ({
     if (mode !== 'fill') return;
     const newFills = { ...fills, [regionId]: selectedColor };
     pushFill(newFills);
-    
-    // Auto save
+
     localStorage.setItem(`prismaflow-project-${pageId}`, JSON.stringify({
       pageId,
       fills: newFills,
@@ -145,7 +146,7 @@ export const Studio: React.FC<StudioProps> = ({
     if (!('speechSynthesis' in window)) return;
     const region = page?.regions.find(r => r.id === regionId);
     if (!region) return;
-    
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(
       `${region.name}. ${region.description}. Current color: ${fills[regionId] || 'white'}.`
@@ -153,7 +154,6 @@ export const Studio: React.FC<StudioProps> = ({
     window.speechSynthesis.speak(utterance);
   }, [page, fills]);
 
-  // Programmatically focus the selected region for keyboard navigation
   useEffect(() => {
     if (selectedRegionIndex >= 0 && svgRef.current) {
       const regionId = page.regions[selectedRegionIndex].id;
@@ -168,7 +168,6 @@ export const Studio: React.FC<StudioProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!page) return;
 
-      // Undo/Redo
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z') {
           if (e.shiftKey) handleRedo();
@@ -181,12 +180,10 @@ export const Studio: React.FC<StudioProps> = ({
         }
       }
 
-      // Region Navigation — Arrow keys + Tab/Shift+Tab
       const isNext = e.key === 'ArrowRight' || e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey);
       const isPrev = e.key === 'ArrowLeft' || e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey);
 
       if (isNext || isPrev) {
-        // Only intercept Tab/Shift+Tab when focus is inside the SVG canvas
         if (e.key === 'Tab') {
           const active = document.activeElement;
           const inCanvas = svgRef.current && active && svgRef.current.contains(active as Node);
@@ -233,47 +230,84 @@ export const Studio: React.FC<StudioProps> = ({
       }
     );
   };
+
   const isADHD = activeProfile === 'adhd';
   const isBlind = activeProfile === 'blind';
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-      {/* Studio Toolbar - Left on Desktop, Bottom on Mobile */}
-      <aside className="w-full md:w-20 border-b md:border-b-0 md:border-r border-border/40 bg-background/60 backdrop-blur-md p-4 flex md:flex-col gap-4 items-center shrink-0 z-20">
-        <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to Gallery">
-          <ChevronLeft className="w-6 h-6" />
+    <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative bg-[#07080D]">
+      {/* Studio Toolbar */}
+      <aside className="w-full md:w-[72px] border-b md:border-b-0 md:border-r border-border/30 bg-card/60 backdrop-blur-2xl p-3 flex md:flex-col gap-3 items-center shrink-0 z-20">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onBack}
+          aria-label="Back to Gallery"
+          className="rounded-xl hover:bg-muted/60 transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5" />
         </Button>
-        <div className="flex-1 md:flex-none flex md:flex-col gap-4">
-          <Button 
-            variant={mode === 'fill' ? 'default' : 'ghost'} 
-            size="icon" 
+
+        <div className="hidden md:block w-8 h-px bg-border/40" />
+
+        <div className="flex-1 md:flex-none flex md:flex-col gap-2">
+          <Button
+            variant={mode === 'fill' ? 'default' : 'ghost'}
+            size="icon"
             onClick={() => setMode('fill')}
             aria-label="Fill Mode"
             title="Fill Mode"
+            className={cn(
+              "rounded-xl transition-all",
+              mode === 'fill' && "bg-gradient-to-br from-[#45E7FF] to-[#00BBF9] text-[#07080D] shadow-lg shadow-[#45E7FF]/20 hover:opacity-90"
+            )}
           >
-            <PaintBucket className="w-6 h-6" />
+            <PaintBucket className="w-5 h-5" />
           </Button>
           {!isADHD && (
-            <Button 
-              variant={mode === 'brush' ? 'default' : 'ghost'} 
-              size="icon" 
+            <Button
+              variant={mode === 'brush' ? 'default' : 'ghost'}
+              size="icon"
               onClick={() => setMode('brush')}
               aria-label="Brush Mode"
               title="Brush Mode"
+              className={cn(
+                "rounded-xl transition-all",
+                mode === 'brush' && "bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] text-white shadow-lg shadow-[#8B5CF6]/20 hover:opacity-90"
+              )}
             >
-              <Brush className="w-6 h-6" />
+              <Brush className="w-5 h-5" />
             </Button>
           )}
         </div>
-        <div className="flex md:flex-col gap-4">
+
+        <div className="hidden md:block w-8 h-px bg-border/40" />
+
+        <div className="flex md:flex-col gap-2">
           {!isADHD && (
-            <Button variant="ghost" size="icon" onClick={handleUndo} disabled={!canUndo} aria-label="Undo" title="Undo">
-              <Undo className="w-6 h-6" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              aria-label="Undo"
+              title="Undo"
+              className="rounded-xl hover:bg-muted/60 disabled:opacity-30"
+            >
+              <Undo className="w-5 h-5" />
             </Button>
           )}
           {!isADHD && (
-            <Button variant="ghost" size="icon" onClick={handleRedo} disabled={!canRedo} aria-label="Redo" title="Redo">
-              <Redo className="w-6 h-6" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              aria-label="Redo"
+              title="Redo"
+              className="rounded-xl hover:bg-muted/60 disabled:opacity-30"
+            >
+              <Redo className="w-5 h-5" />
             </Button>
           )}
         </div>
@@ -281,18 +315,26 @@ export const Studio: React.FC<StudioProps> = ({
 
       {/* Main Studio Area */}
       <div className="flex-1 relative flex flex-col min-w-0">
-        <div className="absolute inset-0 overflow-hidden bg-muted/10">
-          <SvgColoringCanvas 
+        <div className="absolute inset-0 overflow-hidden bg-gradient-to-br from-[#0A0C14] via-[#07080D] to-[#0D0F1A]">
+          {/* Subtle grid pattern */}
+          <div
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+              backgroundSize: '40px 40px'
+            }}
+          />
+          <SvgColoringCanvas
             ref={svgRef}
-            pageId={pageId} 
-            fills={fills} 
+            pageId={pageId}
+            fills={fills}
             onFill={handleFill}
             viewBox={page.svgViewBox}
             selectedRegionId={selectedRegionIndex >= 0 ? page.regions[selectedRegionIndex].id : undefined}
             regions={page.regions}
           />
           {mode === 'brush' && (
-            <BrushCanvas 
+            <BrushCanvas
               ref={brushCanvasRef}
               active={true}
               color={selectedColor}
@@ -303,10 +345,16 @@ export const Studio: React.FC<StudioProps> = ({
             />
           )}
         </div>
-        
-        {/* Floating Controls for Mobile */}
+
+        {/* Floating Controls */}
         <div className="absolute top-4 right-4 flex gap-2">
-          <Button variant="outline" size="icon" className="glass-panel" onClick={onOpenAccess} aria-label="Settings">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onOpenAccess}
+            aria-label="Settings"
+            className="glass-panel-strong rounded-xl border-border/40 hover:border-[#45E7FF]/30 hover:bg-[#45E7FF]/5 transition-colors"
+          >
             <Settings className="w-5 h-5" />
           </Button>
         </div>
@@ -314,101 +362,123 @@ export const Studio: React.FC<StudioProps> = ({
 
       {/* Sidebar - Right */}
       <aside className={cn(
-        "w-full md:w-80 border-t md:border-t-0 md:border-l border-border/40 bg-background/60 backdrop-blur-md flex flex-col shrink-0 z-20",
+        "w-full md:w-80 border-t md:border-t-0 md:border-l border-border/30 bg-card/60 backdrop-blur-2xl flex flex-col shrink-0 z-20",
         isADHD && "md:w-64"
       )}>
-        <div className="p-4 border-b border-border/40 space-y-2">
+        {/* Header */}
+        <div className="p-5 border-b border-border/30 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold">{page.title}</h3>
-            <Button variant="ghost" size="sm" onClick={() => toast.success('Artwork saved!')}>
+            <h3 className="font-bold text-lg tracking-tight">{page.title}</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toast.success('Artwork saved!')}
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <Save className="w-3.5 h-3.5" />
               Saved
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground text-pretty">{page.description}</p>
-          <span className="inline-block text-xs font-medium uppercase tracking-wider px-2 py-1 rounded bg-secondary text-secondary-foreground">
+          <p className="text-sm text-muted-foreground text-pretty leading-relaxed">{page.description}</p>
+          <span className="inline-block text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full bg-secondary/80 text-secondary-foreground">
             {page.difficulty}
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-8">
+        <div className="flex-1 overflow-y-auto p-5 space-y-8">
+          {/* Blind Guide Region List */}
           {isBlind && (
-            <section className="space-y-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Region Guide</h4>
+            <section className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Volume2 className="w-3.5 h-3.5" />
+                Region Guide
+              </h4>
               <div className="grid gap-2">
                 {page.regions.map(r => (
-                  <Button 
-                    key={r.id} 
-                    variant="outline" 
-                    className="justify-between"
+                  <Button
+                    key={r.id}
+                    variant="outline"
+                    className="justify-between rounded-xl border-border/40 hover:border-[#45E7FF]/40 hover:bg-[#45E7FF]/5 transition-colors"
                     onClick={() => {
                       handleFill(r.id);
                       speakRegion(r.id);
                     }}
                   >
                     <span>{r.name}</span>
-                    <Volume2 className="w-4 h-4" />
+                    <Volume2 className="w-4 h-4 text-muted-foreground" />
                   </Button>
                 ))}
               </div>
             </section>
           )}
 
+          {/* Palette */}
           <section>
-            <PalettePicker 
-              selectedColor={selectedColor} 
-              onSelectColor={setSelectedColor} 
+            <PalettePicker
+              selectedColor={selectedColor}
+              onSelectColor={setSelectedColor}
             />
           </section>
 
+          {/* Brush Settings */}
           {mode === 'brush' && (
-            <section className="space-y-4 pt-4 border-t border-border/40">
+            <section className="space-y-4 pt-4 border-t border-border/30">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Brush Settings</h4>
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Size</span>
-                    <span>{brushSize}px</span>
+                    <span className="font-mono">{brushSize}px</span>
                   </div>
-                  <input 
-                    type="range" min="1" max="50" 
-                    value={brushSize} 
+                  <input
+                    type="range" min="1" max="50"
+                    value={brushSize}
                     onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                    className="w-full"
+                    className="w-full accent-[#45E7FF]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Opacity</span>
-                    <span>{Math.round(brushOpacity * 100)}%</span>
+                    <span className="font-mono">{Math.round(brushOpacity * 100)}%</span>
                   </div>
-                  <input 
+                  <input
                     type="range" min="0.1" max="1" step="0.1"
-                    value={brushOpacity} 
+                    value={brushOpacity}
                     onChange={(e) => setBrushOpacity(parseFloat(e.target.value))}
-                    className="w-full"
+                    className="w-full accent-[#45E7FF]"
                   />
                 </div>
               </div>
             </section>
           )}
 
-          <section className="pt-4 border-t border-border/40">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100" 
+          {/* Clear */}
+          <section className="pt-4 border-t border-border/30">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full rounded-xl border-[#FF6EC7]/20 text-[#FF6EC7] hover:text-[#FF8AD4] hover:bg-[#FF6EC7]/5 hover:border-[#FF6EC7]/30 transition-colors"
               onClick={handleClearCanvas}
             >
+              <Eraser className="w-3.5 h-3.5 mr-2" />
               Clear Canvas
             </Button>
           </section>
         </div>
 
-        <div className="p-4 border-t border-border/40 grid grid-cols-2 gap-4">
-          <Button className="w-full" onClick={handleExport}>
+        {/* Footer Actions */}
+        <div className="p-5 border-t border-border/30 grid grid-cols-2 gap-3">
+          <Button
+            className="w-full rounded-xl bg-gradient-to-r from-[#45E7FF] to-[#8B5CF6] text-[#07080D] font-semibold hover:opacity-90 transition-opacity"
+            onClick={handleExport}
+          >
             <Download className="w-4 h-4 mr-2" /> Export
           </Button>
-          <Button variant="outline" className="w-full">
+          <Button
+            variant="outline"
+            className="w-full rounded-xl border-border/40 hover:border-[#45E7FF]/30 hover:bg-[#45E7FF]/5 transition-colors"
+          >
             <Maximize2 className="w-4 h-4 mr-2" /> Focus
           </Button>
         </div>
