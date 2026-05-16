@@ -33,3 +33,4 @@ test-results/
 
 # Workspace state
 historical_context.txt
+.env
