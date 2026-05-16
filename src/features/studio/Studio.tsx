@@ -36,6 +36,18 @@ export const Studio: React.FC<StudioProps> = ({
   activeProfile
 }) => {
   const page = STARTER_PAGES.find(p => p.id === pageId);
+
+  if (!page) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8 text-center">
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold">Page not found</h2>
+          <Button onClick={onBack}>Back to Gallery</Button>
+        </div>
+      </div>
+    );
+  }
+
   const [selectedColor, setSelectedColor] = useState('#8E94F2');
   const [mode, setMode] = useState<'fill' | 'brush'>('fill');
   const [brushSize, setBrushSize] = useState(5);
@@ -49,7 +61,8 @@ export const Studio: React.FC<StudioProps> = ({
     undo, 
     redo, 
     canUndo, 
-    canRedo 
+    canRedo,
+    reset: resetFills
   } = useUndoStack<Record<string, string>>({});
 
   useEffect(() => {
@@ -58,13 +71,13 @@ export const Studio: React.FC<StudioProps> = ({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.fills) pushFill(parsed.fills);
+        if (parsed.fills) resetFills(parsed.fills);
         if (parsed.brushData) setBrushData(parsed.brushData);
       } catch (e) {
         console.error('Failed to load project', e);
       }
     }
-  }, [pageId, pushFill]);
+  }, [pageId, resetFills]);
 
   const handleFill = useCallback((regionId: string) => {
     if (mode !== 'fill') return;
@@ -102,7 +115,7 @@ export const Studio: React.FC<StudioProps> = ({
     }
   };
 
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     const prevState = undo();
     if (prevState) {
       localStorage.setItem(`prismaflow-project-${pageId}`, JSON.stringify({
@@ -112,9 +125,9 @@ export const Studio: React.FC<StudioProps> = ({
         lastModified: Date.now()
       }));
     }
-  };
+  }, [undo, pageId, brushData]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     const nextState = redo();
     if (nextState) {
       localStorage.setItem(`prismaflow-project-${pageId}`, JSON.stringify({
@@ -124,9 +137,9 @@ export const Studio: React.FC<StudioProps> = ({
         lastModified: Date.now()
       }));
     }
-  };
+  }, [redo, pageId, brushData]);
 
-  const speakRegion = (regionId: string) => {
+  const speakRegion = useCallback((regionId: string) => {
     if (!('speechSynthesis' in window)) return;
     const region = page?.regions.find(r => r.id === regionId);
     if (!region) return;
@@ -136,7 +149,7 @@ export const Studio: React.FC<StudioProps> = ({
       `${region.name}. ${region.description}. Current color: ${fills[regionId] || 'white'}.`
     );
     window.speechSynthesis.speak(utterance);
-  };
+  }, [page, fills]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -227,12 +240,16 @@ export const Studio: React.FC<StudioProps> = ({
           )}
         </div>
         <div className="flex md:flex-col gap-4">
-          <Button variant="ghost" size="icon" onClick={handleUndo} disabled={!canUndo} aria-label="Undo" title="Undo">
-            <Undo className="w-6 h-6" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={handleRedo} disabled={!canRedo} aria-label="Redo" title="Redo">
-            <Redo className="w-6 h-6" />
-          </Button>
+          {!isADHD && (
+            <Button variant="ghost" size="icon" onClick={handleUndo} disabled={!canUndo} aria-label="Undo" title="Undo">
+              <Undo className="w-6 h-6" />
+            </Button>
+          )}
+          {!isADHD && (
+            <Button variant="ghost" size="icon" onClick={handleRedo} disabled={!canRedo} aria-label="Redo" title="Redo">
+              <Redo className="w-6 h-6" />
+            </Button>
+          )}
         </div>
       </aside>
 

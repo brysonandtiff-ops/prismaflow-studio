@@ -1,45 +1,59 @@
 import { useState, useCallback } from 'react';
 
 export function useUndoStack<T>(initialState: T) {
-  const [history, setHistory] = useState<T[]>([initialState]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [state, setState] = useState({
+    history: [initialState],
+    currentIndex: 0
+  });
 
   const pushState = useCallback((newState: T) => {
-    setHistory(prev => {
-      const nextHistory = prev.slice(0, currentIndex + 1);
-      return [...nextHistory, newState];
+    setState(prev => {
+      const newHistory = prev.history.slice(0, prev.currentIndex + 1);
+      return {
+        history: [...newHistory, newState],
+        currentIndex: prev.currentIndex + 1
+      };
     });
-    setCurrentIndex(prev => prev + 1);
-  }, [currentIndex]);
+  }, []);
 
   const undo = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-      return history[currentIndex - 1];
-    }
-    return null;
-  }, [currentIndex, history]);
+    let targetState: T | null = null;
+    setState(prev => {
+      if (prev.currentIndex > 0) {
+        const nextIndex = prev.currentIndex - 1;
+        targetState = prev.history[nextIndex];
+        return { ...prev, currentIndex: nextIndex };
+      }
+      return prev;
+    });
+    return targetState;
+  }, []);
 
   const redo = useCallback(() => {
-    if (currentIndex < history.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      return history[currentIndex + 1];
-    }
-    return null;
-  }, [currentIndex, history]);
-
-  const currentState = history[currentIndex];
+    let targetState: T | null = null;
+    setState(prev => {
+      if (prev.currentIndex < prev.history.length - 1) {
+        const nextIndex = prev.currentIndex + 1;
+        targetState = prev.history[nextIndex];
+        return { ...prev, currentIndex: nextIndex };
+      }
+      return prev;
+    });
+    return targetState;
+  }, []);
 
   return {
-    currentState,
+    currentState: state.history[state.currentIndex],
     pushState,
     undo,
     redo,
-    canUndo: currentIndex > 0,
-    canRedo: currentIndex < history.length - 1,
-    reset: useCallback((state: T) => {
-      setHistory([state]);
-      setCurrentIndex(0);
+    canUndo: state.currentIndex > 0,
+    canRedo: state.currentIndex < state.history.length - 1,
+    reset: useCallback((initial: T) => {
+      setState({
+        history: [initial],
+        currentIndex: 0
+      });
     }, [])
   };
 }

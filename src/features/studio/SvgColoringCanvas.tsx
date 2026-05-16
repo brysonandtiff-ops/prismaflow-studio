@@ -72,6 +72,8 @@ export const SvgColoringCanvas = React.forwardRef<SVGSVGElement, SvgColoringCanv
     }
   };
 
+  const paths = renderPaths();
+
   return (
     <div className={cn("relative w-full h-full flex items-center justify-center p-8", className)}>
       <svg
@@ -89,23 +91,22 @@ export const SvgColoringCanvas = React.forwardRef<SVGSVGElement, SvgColoringCanv
           className="fill-none stroke-foreground/20 stroke-[0.5] transition-all cursor-pointer"
           style={{ vectorEffect: 'non-scaling-stroke' }}
         >
-          {React.Children.map(renderPaths()?.props.children, (child) => {
+          {paths && React.Children.map(paths.props.children, (child) => {
             if (React.isValidElement(child)) {
-              return React.cloneElement(child, {
-                // @ts-ignore
-                fill: fills[child.props.id] || '#ffffff',
+              const regionId = (child.props as any).id;
+              return React.cloneElement(child as React.ReactElement, {
+                fill: fills[regionId] || '#ffffff',
                 className: cn(
                   "hover:stroke-primary hover:stroke-2 transition-all outline-none focus:stroke-primary focus:stroke-2",
                   child.props.className,
-                  selectedRegionId === child.props.id && "stroke-primary stroke-2 animate-pulse"
+                  selectedRegionId === regionId && "stroke-primary stroke-2 animate-pulse"
                 ),
                 tabIndex: 0,
                 role: "button",
-                "aria-label": `Region: ${regions.find(r => r.id === child.props.id)?.name || child.props.id}`,
+                "aria-label": `Region: ${regions.find(r => r.id === regionId)?.name || regionId}`,
                 onKeyDown: (e: React.KeyboardEvent) => {
                   if (e.key === 'Enter' || e.key === ' ') {
-                    // @ts-ignore
-                    onFill(child.props.id);
+                    onFill(regionId);
                   }
                 }
               });
