@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SvgColoringCanvasProps {
@@ -9,6 +9,20 @@ interface SvgColoringCanvasProps {
   viewBox: string;
   selectedRegionId?: string;
   regions?: { id: string; name: string }[];
+  svgMarkup?: string;
+}
+
+const COLORABLE_SELECTOR = 'path, rect, circle, ellipse, polygon, polyline';
+const REGION_CLASS = 'hover:stroke-primary hover:stroke-2 transition-all outline-none focus:stroke-primary focus:stroke-2';
+const SELECTED_REGION_CLASS = 'stroke-primary stroke-2 animate-pulse';
+
+function getImportedSvgInnerMarkup(svgMarkup?: string) {
+  if (!svgMarkup || typeof DOMParser === 'undefined') return null;
+
+  const doc = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml');
+  if (doc.querySelector('parsererror')) return null;
+
+  return doc.querySelector('svg')?.innerHTML ?? null;
 }
 
 export const SvgColoringCanvas = React.forwardRef<SVGSVGElement, SvgColoringCanvasProps>(({
@@ -18,14 +32,74 @@ export const SvgColoringCanvas = React.forwardRef<SVGSVGElement, SvgColoringCanv
   className,
   viewBox,
   selectedRegionId,
-  regions = []
+  regions = [],
+  svgMarkup
 }, ref) => {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const importedSvgInnerMarkup = useMemo(() => getImportedSvgInnerMarkup(svgMarkup), [svgMarkup]);
+  const regionIds = useMemo(() => new Set(regions.map(region => region.id)), [regions]);
+
+  const setSvgRef = useCallback((node: SVGSVGElement | null) => {
+    svgRef.current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      (ref as React.MutableRefObject<SVGSVGElement | null>).current = node;
+    }
+  }, [ref]);
+
+  const getRegionIdFromTarget = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof Element)) return null;
+    const regionElement = target.closest(COLORABLE_SELECTOR);
+    if (!(regionElement instanceof SVGElement) || !regionElement.id) return null;
+    return regionIds.has(regionElement.id) ? regionElement.id : null;
+  }, [regionIds]);
+
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const target = e.target as SVGElement;
-    if (target.id) {
-      onFill(target.id);
+    const regionId = getRegionIdFromTarget(e.target);
+    if (regionId) {
+      onFill(regionId);
     }
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<SVGSVGElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+
+    const regionId = getRegionIdFromTarget(e.target);
+    if (regionId) {
+      e.preventDefault();
+      onFill(regionId);
+    }
+  };
+
+  useEffect(() => {
+    if (!importedSvgInnerMarkup || !svgRef.current) return;
+
+    const regionNames = new Map(regions.map(region => [region.id, region.name]));
+    const elements = svgRef.current.querySelectorAll<SVGElement>(COLORABLE_SELECTOR);
+
+    elements.forEach(element => {
+      const regionId = element.id;
+      const isRegion = regionIds.has(regionId);
+
+      if (!isRegion) {
+        element.removeAttribute('tabindex');
+        element.removeAttribute('role');
+        element.removeAttribute('aria-label');
+        return;
+      }
+
+      element.setAttribute('fill', fills[regionId] || '#ffffff');
+      element.setAttribute('class', cn(
+        REGION_CLASS,
+        selectedRegionId === regionId && SELECTED_REGION_CLASS
+      ));
+      element.setAttribute('tabindex', '0');
+      element.setAttribute('role', 'button');
+      element.setAttribute('aria-label', `Region: ${regionNames.get(regionId) || regionId}`);
+      element.style.setProperty('vector-effect', 'non-scaling-stroke');
+    });
+  }, [fills, importedSvgInnerMarkup, regionIds, regions, selectedRegionId]);
 
   /* ── Prism Fox — 19 geometric crystal facets ── */
   const prismFoxPaths = (
@@ -144,38 +218,46 @@ export const SvgColoringCanvas = React.forwardRef<SVGSVGElement, SvgColoringCanv
   return (
     <div className={cn("relative w-full h-full flex items-center justify-center p-4 md:p-8", className)}>
       <svg
-        ref={ref}
+        ref={setSvgRef}
         viewBox={viewBox}
         className="max-w-full max-h-full drop-shadow-2xl studio-canvas"
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        data-page-id={pageId}
       >
-        <g
-          className="fill-none stroke-foreground/20 stroke-[0.5] transition-all cursor-pointer"
-          style={{ vectorEffect: 'non-scaling-stroke' }}
-        >
-          {paths && React.Children.map(paths.props.children, (child) => {
-            if (React.isValidElement(child)) {
-              const regionId = (child.props as any).id;
-              return React.cloneElement(child as React.ReactElement, {
-                fill: fills[regionId] || '#ffffff',
-                className: cn(
-                  "hover:stroke-primary hover:stroke-2 transition-all outline-none focus:stroke-primary focus:stroke-2",
-                  child.props.className,
-                  selectedRegionId === regionId && "stroke-primary stroke-2 animate-pulse"
-                ),
-                tabIndex: 0,
-                role: "button",
-                "aria-label": `Region: ${regions.find(r => r.id === regionId)?.name || regionId}`,
-                onKeyDown: (e: React.KeyboardEvent) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    onFill(regionId);
-                  }
-                }
-              });
-            }
-            return child;
-          })}
-        </g>
+        {importedSvgInnerMarkup ? (
+          <g
+            className="fill-white stroke-foreground/20 stroke-[0.5] transition-all cursor-pointer"
+            data-testid="imported-svg-artwork"
+            dangerouslySetInnerHTML={{ __html: importedSvgInnerMarkup }}
+          />
+        ) : (
+          <g
+            className="fill-none stroke-foreground/20 stroke-[0.5] transition-all cursor-pointer"
+            style={{ vectorEffect: 'non-scaling-stroke' }}
+          >
+            {paths && React.Children.map(paths.props.children, (child) => {
+              if (React.isValidElement(child)) {
+                const childProps = child.props as { id?: string; className?: string };
+                const regionId = childProps.id;
+                if (!regionId || !regionIds.has(regionId)) return child;
+
+                return React.cloneElement(child as React.ReactElement, {
+                  fill: fills[regionId] || '#ffffff',
+                  className: cn(
+                    REGION_CLASS,
+                    childProps.className,
+                    selectedRegionId === regionId && SELECTED_REGION_CLASS
+                  ),
+                  tabIndex: 0,
+                  role: "button",
+                  "aria-label": `Region: ${regions.find(r => r.id === regionId)?.name || regionId}`,
+                });
+              }
+              return child;
+            })}
+          </g>
+        )}
       </svg>
     </div>
   );

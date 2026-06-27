@@ -41,10 +41,31 @@ function loadImportedPages(): ImportedPage[] {
   } catch { return []; }
 }
 
-function getPage(pageId: string) {
+function getSvgViewBox(svgData: string) {
+  try {
+    const doc = new DOMParser().parseFromString(svgData, 'image/svg+xml');
+    const svg = doc.querySelector('svg');
+    if (!svg || doc.querySelector('parsererror')) return '0 0 200 200';
+
+    const viewBox = svg.getAttribute('viewBox')?.trim();
+    if (viewBox) return viewBox;
+
+    const width = Number.parseFloat(svg.getAttribute('width') || '');
+    const height = Number.parseFloat(svg.getAttribute('height') || '');
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return `0 0 ${width} ${height}`;
+    }
+  } catch {
+    // Fall through to the default square canvas.
+  }
+
+  return '0 0 200 200';
+}
+
+function getPage(pageId: string, importedPage?: ImportedPage) {
   const starter = STARTER_PAGES.find(p => p.id === pageId);
   if (starter) return starter;
-  const imported = loadImportedPages().find(p => p.id === pageId);
+  const imported = importedPage ?? loadImportedPages().find(p => p.id === pageId);
   if (!imported) return null;
   // Convert imported page to ColoringPage shape
   return {
@@ -54,7 +75,7 @@ function getPage(pageId: string) {
       ? 'Your imported SVG colouring page.'
       : 'Your imported image. Use brush colouring.',
     difficulty: 'detailed' as const,
-    svgViewBox: '0 0 200 200',
+    svgViewBox: imported.type === 'svg' ? getSvgViewBox(imported.data) : '0 0 200 200',
     regions: imported.regions.map(r => ({
       id: r.id,
       name: r.name,
@@ -79,22 +100,11 @@ export const Studio: React.FC<StudioProps> = ({
   const [selectedRegionIndex, setSelectedRegionIndex] = useState<number>(-1);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
-  const page = getPage(pageId);
-  const isRaster = loadImportedPages().find(p => p.id === pageId)?.type === 'raster';
+  const importedPage = loadImportedPages().find(p => p.id === pageId);
+  const page = getPage(pageId, importedPage);
+  const isRaster = importedPage?.type === 'raster';
+  const importedSvgMarkup = importedPage?.type === 'svg' ? importedPage.data : undefined;
   const hasRegions = (page?.regions.length || 0) > 0;
-
-  if (!page) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 text-center">
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold">Page not found</h2>
-          <Button onClick={onBack} className="bg-gradient-to-r from-[#45E7FF] to-[#8B5CF6] text-[#07080D] font-semibold">
-            Back to Gallery
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const {
     currentState: fills,
@@ -105,6 +115,9 @@ export const Studio: React.FC<StudioProps> = ({
     canRedo,
     reset: resetFills
   } = useUndoStack<Record<string, string>>({});
+
+  const svgRef = useRef<SVGSVGElement>(null);
+  const brushCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(`prismaflow-project-${pageId}`);
@@ -213,7 +226,7 @@ export const Studio: React.FC<StudioProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!page) return;
+      if (!page || page.regions.length === 0) return;
 
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z') {
@@ -263,9 +276,6 @@ export const Studio: React.FC<StudioProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [page, selectedRegionIndex, handleFill, handleUndo, handleRedo, mode]);
 
-  const svgRef = useRef<SVGSVGElement>(null);
-  const brushCanvasRef = useRef<HTMLCanvasElement>(null);
-
   const handleExport = async (opts?: ExportOptions) => {
     if (!svgRef.current) return;
     toast.promise(
@@ -281,6 +291,19 @@ export const Studio: React.FC<StudioProps> = ({
   const isADHD = activeProfile === 'adhd';
   const isBlind = activeProfile === 'blind';
   const brushActive = mode === 'brush' || mode === 'eraser';
+
+  if (!page) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8 text-center">
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold">Page not found</h2>
+          <Button onClick={onBack} className="bg-gradient-to-r from-[#45E7FF] to-[#8B5CF6] text-[#07080D] font-semibold">
+            Back to Gallery
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative bg-[#07080D]">
@@ -404,12 +427,11 @@ export const Studio: React.FC<StudioProps> = ({
           {isRaster ? (
             <div className="w-full h-full flex items-center justify-center">
               {(() => {
-                const imported = loadImportedPages().find(p => p.id === pageId);
-                return imported ? (
+                return importedPage ? (
                   <div className="relative w-full h-full">
                     <img
-                      src={imported.data}
-                      alt={imported.title}
+                      src={importedPage.data}
+                      alt={importedPage.title}
                       className="w-full h-full object-contain"
                     />
                     <BrushCanvas
@@ -437,6 +459,7 @@ export const Studio: React.FC<StudioProps> = ({
                 viewBox={page.svgViewBox}
                 selectedRegionId={selectedRegionIndex >= 0 ? page.regions[selectedRegionIndex]?.id : undefined}
                 regions={page.regions}
+                svgMarkup={importedSvgMarkup}
               />
               {brushActive && (
                 <BrushCanvas
