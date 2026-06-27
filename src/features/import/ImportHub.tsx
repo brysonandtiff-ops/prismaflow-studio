@@ -41,8 +41,7 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
   const [previewName, setPreviewName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [rasterOptions, setRasterOptions] = useState<RasterConvertOptions>(DEFAULT_CONVERT_OPTIONS);
-  const [rasterPreview, setRasterPreview] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'svg' | 'raster'>('svg');
+  const [originalRasterFile, setOriginalRasterFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +50,7 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
 
     setIsProcessing(true);
     setPreview(null);
-    setRasterPreview(null);
+    setOriginalRasterFile(null);
 
     try {
       if (file.type === 'image/svg+xml' || file.name.endsWith('.svg')) {
@@ -70,13 +69,11 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
 
         setPreview({ type: 'svg', data: result.svgString, regions: result.regions });
         setPreviewName(file.name.replace(/\.svg$/i, ''));
-        setActiveTab('svg');
       } else if (file.type.startsWith('image/') || file.name.match(/\.(png|jpg|jpeg|webp)$/i)) {
         const result = await convertImageToLineArt(file, rasterOptions);
-        setRasterPreview(result);
+        setOriginalRasterFile(file);
         setPreview({ type: 'raster', data: result, regions: [] });
         setPreviewName(file.name.replace(/\.(png|jpg|jpeg|webp)$/i, ''));
-        setActiveTab('raster');
       } else {
         toast.error('Unsupported file type. Please upload SVG, PNG, JPG, or WebP.');
       }
@@ -90,10 +87,22 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
 
   const handleApplyRasterOptions = useCallback(async () => {
     if (!preview || preview.type !== 'raster') return;
-    // Re-read the original file if we can, or just show the current preview
-    // For simplicity, we'll just note that options are applied
-    toast.info('Adjustments applied. Re-upload the image to see changes with new settings.');
-  }, [preview]);
+    if (!originalRasterFile) {
+      toast.error('Upload the image again before applying new adjustments.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const result = await convertImageToLineArt(originalRasterFile, rasterOptions);
+      setPreview({ ...preview, data: result });
+      toast.success('Line art adjustments applied');
+    } catch (err) {
+      toast.error('Could not apply adjustments: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [originalRasterFile, preview, rasterOptions]);
 
   const handleSave = useCallback(() => {
     if (!preview || !previewName.trim()) return;
@@ -114,7 +123,7 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
     toast.success(`"${newPage.title}" saved to My Imported Pages`);
     setPreview(null);
     setPreviewName('');
-    setRasterPreview(null);
+    setOriginalRasterFile(null);
   }, [preview, previewName, importedPages]);
 
   const handleDelete = useCallback((id: string) => {
@@ -221,6 +230,15 @@ export const ImportHub: React.FC<ImportHubProps> = ({ onClose, onOpenImported })
                 />
                 <label htmlFor="invert" className="text-sm">Invert colours</label>
               </div>
+              <Button
+                onClick={handleApplyRasterOptions}
+                disabled={isProcessing || !originalRasterFile}
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-[#45E7FF]/30 text-[#45E7FF] hover:bg-[#45E7FF]/10"
+              >
+                {isProcessing ? 'Processing...' : 'Apply adjustments'}
+              </Button>
             </div>
           )}
 
