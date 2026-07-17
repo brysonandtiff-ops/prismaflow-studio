@@ -132,15 +132,17 @@ const App: React.FC = () => {
         )}
 
         {currentScreen === 'studio' && selectedPageId && (
-          <>
-            <Studio
-              pageId={selectedPageId}
-              onBack={navigateHome}
-              onOpenAccess={navigateToAccess}
-              activeProfile={activeProfile}
-            />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1">
+              <Studio
+                pageId={selectedPageId}
+                onBack={navigateHome}
+                onOpenAccess={navigateToAccess}
+                activeProfile={activeProfile}
+              />
+            </div>
             <ProjectSafetyBar pageId={selectedPageId} />
-          </>
+          </div>
         )}
 
         {currentScreen === 'studio' && !selectedPageId && (
