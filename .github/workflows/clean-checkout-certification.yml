@@ -34,3 +34,5 @@ jobs:
 
       - name: Run clean-checkout verification
         run: pnpm run verify
+
+# Temporary exact-source verification only.
