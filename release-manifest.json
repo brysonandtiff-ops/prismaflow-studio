@@ -1,0 +1,37 @@
+{
+  "product": "PRISMAFLOW Studio",
+  "repository": "brysonandtiff-ops/prismaflow-studio",
+  "releaseSha": null,
+  "stage": "release-candidate",
+  "coreFlow": "Choose accessible artwork, colour with fill or brush tools, use the preferred accessibility profile, save locally and export the result.",
+  "commands": {
+    "install": "pnpm install",
+    "verify": "pnpm run verify",
+    "build": "pnpm run build"
+  },
+  "deployment": {
+    "provider": "installable PWA export",
+    "status": "ready",
+    "evidence": "repository records all 16 core features and the local verification ladder as passing"
+  },
+  "evidence": {
+    "typecheck": "pass",
+    "lint": "not-run",
+    "unit": "not-run",
+    "e2e": "pass",
+    "security": "not-applicable",
+    "realDevice": "blocked",
+    "humanAcceptance": "not-run"
+  },
+  "truth": {
+    "usesMockData": false,
+    "hasSimulatedFlows": false,
+    "knownLimitations": [
+      "Physical screen-reader, low-vision, motor-assist and mobile testing remains incomplete.",
+      "Projects are local-only with no account or cloud synchronization.",
+      "The artwork catalogue is intentionally small."
+    ]
+  },
+  "nextMilestone": "Package a stable public PWA release after physical accessibility testing across the six supported profiles.",
+  "updatedAt": "2026-07-17T10:30:00+08:00"
+}
