@@ -17,15 +17,22 @@ interface AppLocation {
   pageId: string | null;
 }
 
+function decodePageId(value: string) {
+  try {
+    return decodeURIComponent(value) || null;
+  } catch {
+    return null;
+  }
+}
+
 function readLocation(): AppLocation {
   const hash = window.location.hash.replace(/^#\/?/, '');
   if (hash.startsWith('studio/')) {
-    const encodedPageId = hash.slice('studio/'.length);
-    try {
-      return { screen: 'studio', pageId: decodeURIComponent(encodedPageId) || null };
-    } catch {
-      return { screen: 'home', pageId: null };
-    }
+    const pageId = decodePageId(hash.slice('studio/'.length));
+    return pageId ? { screen: 'studio', pageId } : { screen: 'home', pageId: null };
+  }
+  if (hash.startsWith('access/')) {
+    return { screen: 'access', pageId: decodePageId(hash.slice('access/'.length)) };
   }
   if (hash === 'access') return { screen: 'access', pageId: null };
   return { screen: 'home', pageId: null };
@@ -34,9 +41,11 @@ function readLocation(): AppLocation {
 function setLocation(screen: Screen, pageId?: string | null) {
   const nextHash = screen === 'studio' && pageId
     ? `#studio/${encodeURIComponent(pageId)}`
-    : screen === 'access'
-      ? '#access'
-      : '#home';
+    : screen === 'access' && pageId
+      ? `#access/${encodeURIComponent(pageId)}`
+      : screen === 'access'
+        ? '#access'
+        : '#home';
   if (window.location.hash !== nextHash) window.location.hash = nextHash;
 }
 
@@ -96,7 +105,7 @@ const App: React.FC = () => {
 
   const navigateToAccess = () => {
     setCurrentScreen('access');
-    setLocation('access');
+    setLocation('access', selectedPageId);
   };
 
   const closeAccess = () => {
