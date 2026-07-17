@@ -32,7 +32,7 @@ function readRecord(raw: string | null): ProjectRecord | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as ProjectRecord;
-    if (!parsed || typeof parsed !== 'object' || parsed.pageId === undefined) return null;
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.pageId !== 'string') return null;
     return parsed;
   } catch {
     return null;
@@ -211,9 +211,9 @@ export const ProjectSafetyBar: React.FC<ProjectSafetyBarProps> = ({ pageId, page
   return (
     <section
       aria-label="Project safety controls"
-      className="fixed bottom-3 left-1/2 z-[70] w-[min(calc(100%-1.5rem),900px)] -translate-x-1/2 rounded-2xl border border-white/10 bg-[#0b0d16]/95 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-xl"
+      className="z-[70] w-full shrink-0 border-t border-white/10 bg-[#0b0d16]/95 px-3 py-2 shadow-[0_-14px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl"
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-2">
         <div className="mr-auto flex min-w-0 items-center gap-2 px-1">
           <ShieldCheck className="h-4 w-4 shrink-0 text-[#6EF3B5]" aria-hidden="true" />
           <div className="min-w-0">
