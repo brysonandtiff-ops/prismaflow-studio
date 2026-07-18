@@ -17,3 +17,5 @@ jobs:
     steps:
       - name: Print runner confirmation
         run: echo "GitHub-hosted runner is available"
+
+# Temporary diagnostic; remove after runner startup is proven.
