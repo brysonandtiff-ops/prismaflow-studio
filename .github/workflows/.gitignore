@@ -1,3 +1,0 @@
-# Owner policy: GitHub Actions is disabled; verification is local-only.
-*.yml
-*.yaml
